@@ -631,15 +631,18 @@ rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
     call_list.pop_front();
   }
 
-  if (call_list.size() != 0 && xid_rep != 0){
-    //does this have to be the case?
-    assert(call_list.front().xid >= xid_rep);
-  }
-
+  /*im assuming once the list gets its first element, it never goes back to empty.
+    AND  it has the last acked thing at the start.*/
+  assert(xid_rep == 0 || (call_list.size() > 0 && call_list.begin()->xid >= xid_rep));
+  
   //check duplicate: find in list.
   for (it = call_list.begin(); (it->xid < xid) && (it != call_list.end()); it++){;}
 
   rpcs::rpcstate_t r;
+
+  /*note that it will be able to answer things for the first node even though
+    it has been acked by the client */
+
   if (it == call_list.end()){
     r = NEW;
   } else if (it->xid == xid && it->cb_present){
