@@ -620,10 +620,46 @@ rpcs::rpcstate_t
 rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 		unsigned int xid_rep, char **b, int *sz)
 {
-	ScopedLock rwl(&reply_window_m_);
+  ScopedLock rwl(&reply_window_m_);
+  /*update: the first element in the list must be the largest
+    acknowledged call.*/
+  std::list<reply_t>& call_list = reply_window_[clt_nonce];
 
-        // You fill this in for Lab 1.
-	return NEW;
+  std::list<reply_t>::iterator it;
+  for (it = call_list.begin(); (it->xid < xid_rep) && (it != call_list.end());){
+    it++;// is this correct?
+    call_list.pop_front();
+  }
+
+  if (call_list.size() != 0 && xid_rep != 0){
+    //does this have to be the case?
+    assert(call_list.front().xid >= xid_rep);
+  }
+
+  //check duplicate: find in list.
+  for (it = call_list.begin(); (it->xid < xid) && (it != call_list.end()); it++){;}
+
+  rpcs::rpcstate_t r;
+  if (it == call_list.end()){
+    r = NEW;
+  } else if (it->xid == xid && it->cb_present){
+    *b = (it -> buf);
+    *sz = (it -> sz);
+    r =  DONE;
+  } else if (it->xid == xid && !it->cb_present){
+    r = INPROGRESS;
+  }else if (it == call_list.begin()){
+    r =  FORGOTTEN;
+  } else { 
+    r =  NEW;
+  }
+
+  if (r == NEW){
+    reply_t rep(xid);
+    call_list.insert(it, rep);
+  }
+
+  return r;
 }
 
 // rpcs::dispatch calls add_reply when it is sending a reply to an RPC,
@@ -635,8 +671,17 @@ void
 rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
 		char *b, int sz)
 {
-	ScopedLock rwl(&reply_window_m_);
-        // You fill this in for Lab 1.
+  ScopedLock rwl(&reply_window_m_);
+  std::list<reply_t>& call_list = reply_window_[clt_nonce];
+  std::list<reply_t>::iterator it;
+
+  for(it = call_list.begin(); it != call_list.end() && it->xid < xid; it++){;}
+  assert (it -> xid == xid);
+  it -> cb_present = true;
+  it -> buf = b;
+  it -> sz = sz;
+	
+  return;
 }
 
 void
