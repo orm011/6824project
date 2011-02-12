@@ -7,7 +7,17 @@
 #include <map>
 #include "extent_protocol.h"
 
+using namespace std;
+
 class extent_server {
+  
+  struct datapiece {
+    std::string str;
+    extent_protocol::attr attr;
+  };
+
+  map<extent_protocol::extentid_t, datapiece> extentmap;
+  
 
  public:
   extent_server();
@@ -19,10 +29,3 @@ class extent_server {
 };
 
 #endif 
-
-
-
-
-
-
-

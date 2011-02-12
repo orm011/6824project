@@ -88,6 +88,3 @@ yfs_client::getdir(inum inum, dirinfo &din)
  release:
   return r;
 }
-
-
-
