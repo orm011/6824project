@@ -84,8 +84,10 @@ fuseserver_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set
   printf("fuseserver_setattr 0x%x\n", to_set);
   if (FUSE_SET_ATTR_SIZE & to_set) {
     printf("   fuseserver_setattr set size to %zu\n", attr->st_size);
-    struct stat st;
+
     // You fill this in for Lab 2
+    //    struct stat st;
+
 #if 0
     fuse_reply_attr(req, &st, 0);
 #else
@@ -129,8 +131,21 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name,
   e->attr_timeout = 0.0;
   e->entry_timeout = 0.0;
   e->generation = 0;
+
   // You fill this in for Lab 2
-  return yfs_client::NOENT;
+  yfs_client::inum n;
+  int reply; 
+  
+  if ((reply  = yfs -> mkfile(name, parent, n)) == yfs_client::OK){
+      struct stat st;
+      assert(getattr(n, st) == yfs_client::OK);
+      e -> ino  = (fuse_ino_t) n;
+      e -> attr =  st;
+      return yfs_client::OK;
+  }   else {
+    return reply;
+  }
+  
 }
 
 void
@@ -174,6 +189,16 @@ fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
   e.entry_timeout = 0.0;
   e.generation = 0;
   bool found = false;
+
+  yfs_client::dirent ent(NULL,0);
+  
+  if (yfs->lookup(name, parent, ent) == yfs_client::OK){
+    found = true;
+    assert(ent.name.compare(name) == 0);
+
+    e.ino = (fuse_ino_t) ent.inum;
+    assert(getattr(ent.inum, e.attr) == yfs_client::OK);
+  }
 
   // You fill this in for Lab 2
   // Look up the file named `name' in the directory referred to by
@@ -229,7 +254,16 @@ fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
   }
 
   memset(&b, 0, sizeof(b));
-
+  
+  yfs_client::inum num = (yfs_client::inum) ino;
+  list<yfs_client::dirent> entrylist;
+  
+  assert(yfs->readdir(num, entrylist) == yfs_client::OK);
+  
+  list<yfs_client::dirent>::iterator it;
+  for (it = entrylist.begin(); it != entrylist.end(); it++){
+    dirbuf_add(&b, it->name.c_str(), it->inum);
+  }
 
   // You fill this in for Lab 2
   // Ask the yfs_client for the file names / i-numbers

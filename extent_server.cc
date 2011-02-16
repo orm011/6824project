@@ -16,8 +16,8 @@ extent_server::extent_server(): extentmap()
 
 int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
 {
-  boolean newid = (extentmap.find(id) != extentmap.end());
-  extent_protocol::attr& attributes =  &extentmap[id].attr;
+  bool newid = (extentmap.find(id) != extentmap.end());
+  extent_protocol::attr& attributes =  extentmap[id].attr;
 
   attributes.size = buf.size();
   attributes.ctime = attributes.mtime = time(NULL);
@@ -25,15 +25,14 @@ int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
   //atime gets set in put() only at creation time.
   if (newid) attributes.atime = attributes.mtime;
 
+  //check this piece of code: it might not be storing anything after function returns.
   extentmap[id].str = buf;
   return extent_protocol::OK;
 }
 
 int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 {
- 
   if (extentmap.find(id) != extentmap.end()){
-    /*TODO: understand,  is this a copy or what is it */
     buf = extentmap[id].str;
     extentmap[id].attr.atime = time(NULL);
     return extent_protocol::OK;
@@ -44,14 +43,13 @@ int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 
 int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr &a)
 {
-  // You fill this in for Lab 2.
   // You replace this with a real implementation. We send a phony response
   // for now because it's difficult to get FUSE to do anything (including
   // unmount) if getattr fails.
 
   if (extentmap.find(id) != extentmap.end()){
-    /*TODO: do i need the & operator to the right? */
-    extent_protocol::attr& extentattr = &extentmap[id].attr;
+
+    extent_protocol::attr& extentattr = extentmap[id].attr;
 
     a.size = extentattr.size;
     a.atime = extentattr.atime;
