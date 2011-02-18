@@ -43,9 +43,6 @@ yfs_client::filename(inum inum)
 bool
 yfs_client::isfile(inum inum)
 {
-
-  //TODO: is this the inum convention we follow, then?
-  // where to we make sure the 1 and 0s get set? fuse.cc?
   if(inum & 0x80000000)
     return true;
   return false;
@@ -88,6 +85,7 @@ yfs_client::getdir(inum inum, dirinfo &din)
   printf("getdir %016llx\n", inum);
   extent_protocol::attr a;
   if (ec->getattr(inum, a) != extent_protocol::OK) {
+    fprintf(stderr, "within getdir error");
     r = IOERR;
     goto release;
   }
@@ -102,7 +100,7 @@ yfs_client::getdir(inum inum, dirinfo &din)
 int
 yfs_client::lookup(std::string name, inum parent, dirent& ent){
   assert(isdir(parent) && parent == (parent & 0xFFFF));
-
+  printf("lookup parent: %016llx name: %s\n", parent, name.c_str());
   string buf;
   assert(ec->get(parent, buf) == extent_protocol::OK);
 
@@ -114,8 +112,10 @@ yfs_client::lookup(std::string name, inum parent, dirent& ent){
   if (it != parentDir.end()){
     //TODO: make sure this is actually making a copy.
     ent = *it;
+    printf("lookup OK: %016llx name %s, ent.inum: %016llx\n", parent, name.c_str(), ent.inum);
     return yfs_client::OK;
   } else {
+    printf("lookup NOENT: %016llx name %s\n", parent, name.c_str());
     return yfs_client::NOENT;
   }
  
@@ -124,34 +124,38 @@ yfs_client::lookup(std::string name, inum parent, dirent& ent){
 int 
 yfs_client::mkfile(std::string name, inum parent, inum& ret){
   assert(isdir(parent) && parent == (parent & 0xFFFF));
-    
-  string buf;
 
+  printf("mkfile parent: %016llx name: %s\n", parent,   name.c_str());
+  string buf;
   assert(ec->get(parent, buf) == extent_protocol::OK);
-  
+
   Directory parentDir(buf);
   inum inu = gen->fileinum();
-  dirent newfile(name, inu );
-  
+  dirent newfile; 
+  newfile.name = name;
+  newfile.inum = inu;
 
   std::list<dirent>::iterator it;
   for  (it = parentDir.begin(); it != parentDir.end() && it -> name != name; it++){}
   
   if (it != parentDir.end()){
+    printf("mkfile EXIST\n");
       return yfs_client::EXIST;
   } 
 
   parentDir.insert_entry(newfile);
   ret = inu;
-  assert(ec->put(parent, parentDir.serialize()) == extent_protocol::OK);
-
+  std::string ser = parentDir.serialize();
+  assert((ec->put(parent, ser)) == extent_protocol::OK);
+  assert((ec->put(ret, "")) == extent_protocol::OK);
+  printf("mkfile newinum: %016llx name: %s\n", inu, name.c_str());
   return yfs_client::OK;
 }
 
 int 
 yfs_client::readdir(inum inumber, list<dirent>& dirlist){
   assert(isdir(inumber) && inumber == (inumber & 0xFFFF));
-  
+  printf("readdir.  inum: %016llx\n", inumber);  
   string buf;
 
   assert(ec->get(inumber,buf) == extent_protocol::OK);
@@ -160,6 +164,57 @@ yfs_client::readdir(inum inumber, list<dirent>& dirlist){
   dirlist = dir.entries;
 
   return yfs_client::OK;
+}
+
+
+int
+yfs_client::setattr(inum fileinum, unsigned int size){
+  assert(isfile(fileinum));
+  std::string st;
+
+  int ret;
+  assert((ret = ec->get(fileinum, st)) == extent_protocol::OK);
+  
+  if (st.size() > size){
+    st = st.substr(size);
+  } else {
+    //TODO: is it okay to add 'x' on extension
+    st = st + std::string('x', size - st.size());
+  }
+
+  assert(ret = (ec->put(fileinum, st) == extent_protocol::OK));
+  return ret;
+}
+
+std::string
+yfs_client::readfile(inum finum, unsigned int size, unsigned int off){
+  std::string st;
+  assert(ec->get(finum,st));
+  assert(isfile(finum));
+  std::string ret;
+
+  if (off + size <= st.size()){
+    ret = st.substr(off, size);
+  } else {
+    ret =  st.substr(off, st.size() - off) + std::string('\0', size + off - st.size());
+  }
+  
+  assert(ret.size() == size);
+  return ret;
+}
+
+int
+yfs_client::writefile(inum finum, std::string contents, unsigned int off){
+  std::string current;
+  assert(ec->get(finum, current) == extent_protocol::OK);
+  
+  std::string newstring = current;
+  int written = min(newstring.size() - off, contents.size());
+
+  newstring.replace(off, written, contents, 0, written);
+  assert(ec->put(finum,newstring) == extent_protocol::OK);
+
+  return written;
 }
 
 /* apparently not for lab2*/
@@ -185,7 +240,7 @@ yfs_client::mkdir(std::string name, inum parent){
 yfs_client::Directory::Directory(std::string& serial){
   //parse string and generate structures
   unsigned int pos = 0;
-
+ 
   while (pos < serial.size()){
     //read in the name
     unsigned int len;
@@ -203,23 +258,27 @@ yfs_client::Directory::Directory(std::string& serial){
     entries.push_back(entry);
   }
 
-  assert(pos = serial.size());
+  //  printf("pos: %d. serial.size() %d", pos, serial.size());
+
+  assert(pos == serial.size());
 
 }
 
-yfs_client::Directory::~Directory(){
-  entries.~list();
-}
+yfs_client::Directory::~Directory(){;}
 
 std::string yfs_client::Directory::serialize(){
+  // printf("start of serialize\n");
   list<dirent>::iterator it = entries.begin();
   char sizestring[NAMELENBYTES + 1];
   char inumstring[INUMBYTES + 1];
 
   std::string total;
 
-  while (it != entries.end()){	
+  // printf("(seralize)after declaration\n");
 
+  while (it != entries.end()){	
+    // fprintf(stderr,"within loop\n");
+	
     //4bytes
     sprintf(sizestring, NAMELENFORMAT, it->name.size());
     total.append(sizestring);
@@ -230,7 +289,10 @@ std::string yfs_client::Directory::serialize(){
     //64bit inum 8 bytes 
     sprintf(inumstring, INUMFORMAT, it->inum);
     total.append(inumstring);
+    it++;
   }
+
+  // std::cout << "final string: " <<  total << std::endl;
 
   return total;
 }  
@@ -257,9 +319,9 @@ yfs_client::generator::generator(){
 }
 
 yfs_client::inum yfs_client::generator::fileinum(){
-  return (yfs_client::inum) ((unsigned int)rand() | 0x8000u);
+  return (yfs_client::inum) ((unsigned int)rand() | 0x80000000u);
 }
 
 yfs_client::inum yfs_client::generator::dirinum(){
-  return (yfs_client::inum) ((unsigned int)rand() & 0x7FFFu);
+  return (yfs_client::inum) ((unsigned int)rand() & 0x7FFFFFFFu);
 }

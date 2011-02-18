@@ -58,6 +58,13 @@ class yfs_client {
     yfs_client::inum inum;
 
     dirent(std::string nm, yfs_client::inum num): name(nm), inum(num){;}
+    dirent(){;};
+  };
+
+  struct dirent2 {
+    std::string name;
+    yfs_client::inum inum;
+
   };
 
 
@@ -99,6 +106,10 @@ class yfs_client {
   bool isdir(inum);
 
   int getfile(inum, fileinfo &);
+
+  //resizes files (trims or pads accordingly)
+  int setattr(inum fileinum, unsigned int size);
+  
   int getdir(inum, dirinfo &);
   
   // generates new file inum and adds relevant directory entry
@@ -107,6 +118,11 @@ class yfs_client {
   //  generates new directory inum, addes entry in parent.
   //TODO add inum ret.
   int mkdir(std::string name, inum parent);
+
+  //reads file contents
+  std::string readfile(inum finum, unsigned int size, unsigned int off);
+
+  int writefile(inum finum, std::string contents, unsigned int off);
 
   //possibly to read the actual dir contents, for FUSE READDIR. need
   //to know how to communicate back to it. 
@@ -117,7 +133,6 @@ class yfs_client {
 
   //takes a dir, marshalls it and writes it to extent
   int writedir();
-
 
 };
 

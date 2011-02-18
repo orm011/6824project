@@ -16,9 +16,9 @@ extent_server::extent_server(): extentmap()
 
 int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
 {
-  bool newid = (extentmap.find(id) != extentmap.end());
+  bool newid = (extentmap.find(id) == extentmap.end());
   extent_protocol::attr& attributes =  extentmap[id].attr;
-
+  
   attributes.size = buf.size();
   attributes.ctime = attributes.mtime = time(NULL);
 
