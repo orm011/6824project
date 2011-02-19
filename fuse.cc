@@ -110,8 +110,8 @@ fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
   std::string str = yfs->readfile(ino, size, off);
 
   char *buf = new char [str.size() + 1];
-  strcpy(buf,str.c_str());
-  fuse_reply_buf(req, buf, size);
+  strcpy(buf, str.c_str());
+  fuse_reply_buf(req, buf, str.size());
   delete[] buf;
 }
 
@@ -126,18 +126,15 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
   int bytes_written;
   std::string contents(buf, size);
 
+  //  fprintf(stderr, "at fuse write: %s\n", contents.c_str());
+  
   //TODO: error handling here?
   bytes_written = yfs->writefile(ino, contents, off);
   
   // You fill this in for Lab 2
-
+  fprintf(stderr, "at fuse wrote: %d\n", bytes_written);
   fuse_reply_write(req, bytes_written);
 
-// #if 0
-//   fuse_reply_write(req, bytes_written);
-// #else
-//   fuse_reply_err(req, ENOSYS);
-// #endif
 }
 
 yfs_client::status

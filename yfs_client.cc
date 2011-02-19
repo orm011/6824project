@@ -12,6 +12,9 @@
 #define ROOTINUM 0x00000001
 #include <cstdlib>
 
+#define MAX(x, y) ((x) > (y) ? (x) : (y))
+
+
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
 {
   ec = new extent_client(extent_dst);
@@ -171,32 +174,27 @@ int
 yfs_client::setattr(inum fileinum, unsigned int size){
   assert(isfile(fileinum));
   std::string st;
-
   int ret;
-  assert((ret = ec->get(fileinum, st)) == extent_protocol::OK);
-  
-  if (st.size() > size){
-    st = st.substr(size);
-  } else {
-    //TODO: is it okay to add 'x' on extension
-    st = st + std::string('x', size - st.size());
-  }
 
-  assert(ret = (ec->put(fileinum, st) == extent_protocol::OK));
-  return ret;
+  assert((ret = ec->get(fileinum, st)) == extent_protocol::OK);
+  st.resize(size);
+  assert((ret = ec->put(fileinum, st)) == extent_protocol::OK);
+
+  return yfs_client::OK;
 }
 
 std::string
 yfs_client::readfile(inum finum, unsigned int size, unsigned int off){
+
   std::string st;
-  assert(ec->get(finum,st));
+  assert(ec->get(finum,st) == extent_protocol::OK);
   assert(isfile(finum));
   std::string ret;
 
   if (off + size <= st.size()){
     ret = st.substr(off, size);
   } else {
-    ret =  st.substr(off, st.size() - off) + std::string('\0', size + off - st.size());
+    ret =  st.substr(off, st.size() - off) + std::string(size + off - st.size(), '\0');
   }
   
   assert(ret.size() == size);
@@ -206,14 +204,16 @@ yfs_client::readfile(inum finum, unsigned int size, unsigned int off){
 int
 yfs_client::writefile(inum finum, std::string contents, unsigned int off){
   std::string current;
-  assert(ec->get(finum, current) == extent_protocol::OK);
-  
-  std::string newstring = current;
-  int written = min(newstring.size() - off, contents.size());
 
-  newstring.replace(off, written, contents, 0, written);
+  assert(ec->get(finum, current) == extent_protocol::OK);
+
+  std::string newstring(MAX(off + contents.size(),current.size()), '\0');
+  newstring.replace(0, current.size(), current);
+  newstring.replace(off, contents.size(), contents);
+
   assert(ec->put(finum,newstring) == extent_protocol::OK);
 
+  int written = contents.size();
   return written;
 }
 
