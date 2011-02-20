@@ -17,6 +17,8 @@
 
 using namespace std;
 
+#include "lock_protocol.h"
+#include "lock_client.h"
 
 class yfs_client {
 
@@ -26,7 +28,8 @@ class yfs_client {
 
   typedef unsigned long long inum;
 
-  enum xxstatus { OK, RPCERR, NOENT, IOERR, EXIST, OFFERR};
+  enum xxstatus { OK, RPCERR, NOENT, IOERR, EXIST };
+
   typedef int status;
 
   class generator {
