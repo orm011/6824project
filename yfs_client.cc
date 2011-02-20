@@ -183,38 +183,39 @@ yfs_client::setattr(inum fileinum, unsigned int size){
   return yfs_client::OK;
 }
 
-std::string
-yfs_client::readfile(inum finum, unsigned int size, unsigned int off){
+int
+yfs_client::readfile(inum finum, unsigned int size, unsigned int off, std::string& ret){
 
   std::string st;
   assert(ec->get(finum,st) == extent_protocol::OK);
   assert(isfile(finum));
-  std::string ret;
+  int rint = yfs_client::OK;
+  /*TODO: change error handling from failing immediatly to passing it on 
+    to fuse*/
 
-  if (off + size <= st.size()){
+  assert(off < st.size());
+
+  if (off + size < st.size()){
     ret = st.substr(off, size);
+  } else if (off < st.size()){
+    ret =  st.substr(off, st.size() - off);
   } else {
-    ret =  st.substr(off, st.size() - off) + std::string(size + off - st.size(), '\0');
+    rint = yfs_client::OFFERR;
   }
-  
-  assert(ret.size() == size);
-  return ret;
+
+  return rint;
 }
 
 int
-yfs_client::writefile(inum finum, std::string contents, unsigned int off){
+yfs_client::writefile(inum finum, std::string newcontents, unsigned int off){
   std::string current;
 
   assert(ec->get(finum, current) == extent_protocol::OK);
-
-  std::string newstring(MAX(off + contents.size(),current.size()), '\0');
+  std::string newstring(MAX(off + newcontents.size(), current.size()), '\0');
   newstring.replace(0, current.size(), current);
-  newstring.replace(off, contents.size(), contents);
-
+  newstring.replace(off, newcontents.size(), newcontents);
   assert(ec->put(finum,newstring) == extent_protocol::OK);
-
-  int written = contents.size();
-  return written;
+  return newcontents.size();
 }
 
 /* apparently not for lab2*/
@@ -258,7 +259,6 @@ yfs_client::Directory::Directory(std::string& serial){
     entries.push_back(entry);
   }
 
-  //  printf("pos: %d. serial.size() %d", pos, serial.size());
 
   assert(pos == serial.size());
 
@@ -267,17 +267,15 @@ yfs_client::Directory::Directory(std::string& serial){
 yfs_client::Directory::~Directory(){;}
 
 std::string yfs_client::Directory::serialize(){
-  // printf("start of serialize\n");
+
   list<dirent>::iterator it = entries.begin();
   char sizestring[NAMELENBYTES + 1];
   char inumstring[INUMBYTES + 1];
 
   std::string total;
 
-  // printf("(seralize)after declaration\n");
 
   while (it != entries.end()){	
-    // fprintf(stderr,"within loop\n");
 	
     //4bytes
     sprintf(sizestring, NAMELENFORMAT, it->name.size());
@@ -291,8 +289,6 @@ std::string yfs_client::Directory::serialize(){
     total.append(inumstring);
     it++;
   }
-
-  // std::cout << "final string: " <<  total << std::endl;
 
   return total;
 }  

@@ -26,7 +26,7 @@ class yfs_client {
 
   typedef unsigned long long inum;
 
-  enum xxstatus { OK, RPCERR, NOENT, IOERR, FBIG, EXIST };
+  enum xxstatus { OK, RPCERR, NOENT, IOERR, EXIST, OFFERR};
   typedef int status;
 
   class generator {
@@ -120,7 +120,7 @@ class yfs_client {
   int mkdir(std::string name, inum parent);
 
   //reads file contents
-  std::string readfile(inum finum, unsigned int size, unsigned int off);
+  int  readfile(inum finum, unsigned int size, unsigned int off, std::string& ret);
 
   int writefile(inum finum, std::string contents, unsigned int off);
 

@@ -106,12 +106,20 @@ fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
   // You fill this in for Lab 2
 
   assert(yfs->isfile(ino));
+  std::string str;
+  int ret = yfs->readfile(ino, size, off, str);
 
-  std::string str = yfs->readfile(ino, size, off);
+  char *buf = new char [str.size()];
+  str.copy(buf, str.size());
 
-  char *buf = new char [str.size() + 1];
-  strcpy(buf, str.c_str());
-  fuse_reply_buf(req, buf, str.size());
+  if (ret == yfs_client::OK){
+    fuse_reply_buf(req, buf, str.size());
+  } else if (ret == yfs_client::OFFERR) {
+    fuse_reply_err(req, EINVAL);
+  } else {
+    fuse_reply_err(req, ENOSYS);
+  }
+
   delete[] buf;
 }
 
