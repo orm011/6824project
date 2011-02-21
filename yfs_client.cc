@@ -12,7 +12,7 @@
 #include <assert.h>
 #define ROOTINUM 0x00000001
 #include <cstdlib>
-
+#include "lang/verify.h"
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
 
@@ -107,14 +107,16 @@ yfs_client::getdir(inum inum, dirinfo &din)
 
 int
 yfs_client::lookup(std::string name, inum parent, dirent& ent){
-  assert(isdir(parent) && parent == (parent & 0xFFFF));
+  assert(isdir(parent));
   printf("lookup parent: %016llx name: %s\n", parent, name.c_str());
   string buf;
-  assert(ec->get(parent, buf) == extent_protocol::OK);
+  VERIFY(ec->get(parent, buf) == extent_protocol::OK);
 
   Directory parentDir(buf);
 
   list<dirent>::iterator  it;
+
+  //TODO: update to use directory lookup 
   for  (it = parentDir.begin(); it != parentDir.end() && it -> name != name; it++){}
 
   if (it != parentDir.end()){
@@ -131,7 +133,7 @@ yfs_client::lookup(std::string name, inum parent, dirent& ent){
 
 int 
 yfs_client::mkfile(std::string name, inum parent, inum& ret){
-  assert(isdir(parent) && parent == (parent & 0xFFFF));
+  assert(isdir(parent));
 
   printf("mkfile parent: %016llx name: %s\n", parent,   name.c_str());
   string buf;
@@ -162,7 +164,7 @@ yfs_client::mkfile(std::string name, inum parent, inum& ret){
 
 int 
 yfs_client::readdir(inum inumber, list<dirent>& dirlist){
-  assert(isdir(inumber) && inumber == (inumber & 0xFFFF));
+  assert(isdir(inumber));
   printf("readdir.  inum: %016llx\n", inumber);  
   string buf;
 
@@ -225,19 +227,46 @@ yfs_client::writefile(inum finum, std::string newcontents, unsigned int off){
 
 /* apparently not for lab2*/
 int 
-yfs_client::mkdir(std::string name, inum parent){
-  assert(isdir(parent) && parent == (parent & 0xFFFF));
+yfs_client::mkdir(std::string name, inum parent, inum& ret){
+  assert(isdir(parent));
   
   string buf; 
-  assert(ec->get(parent, buf) == extent_protocol::OK);
+  VERIFY(ec->get(parent, buf) == extent_protocol::OK);
 
   Directory parentDir(buf);
-  dirent newdir(name, gen->dirinum());
+  ret = gen->dirinum();
+  dirent newdir(name, ret);
 
   parentDir.insert_entry(newdir);
-  assert(ec->put(parent, parentDir.serialize()) == extent_protocol::OK);
+
+  VERIFY(ec->put(parent, parentDir.serialize()) == extent_protocol::OK);
+  VERIFY(ec->put(ret, "") == extent_protocol::OK);
 
   return yfs_client::OK;
+}
+
+int
+yfs_client::unlink(inum parentnum, std::string name){
+  assert(isdir(parentnum));
+  std::string dirstring;
+    VERIFY(ec->get(parentnum, dirstring) == extent_protocol::OK);
+    Directory dir(dirstring);
+    std::list<dirent>::iterator it;
+
+    dir.lookup(name, it);
+    if (it == dir.end()){
+      return yfs_client::NOENT;
+    } else {
+      //remove extent from extent server
+      VERIFY(ec->remove(it->inum) == extent_protocol::OK);
+      
+      //update parent directory
+      dir.remove_entry(it);
+      VERIFY(ec->put(parentnum, dir.serialize()) == extent_protocol::OK);
+
+      return yfs_client::OK;
+    }
+
 }
 
 
@@ -300,6 +329,15 @@ std::string yfs_client::Directory::serialize(){
 
 void yfs_client::Directory::insert_entry(dirent&  entry){
   entries.push_back(entry);
+}
+
+void yfs_client::Directory::remove_entry(list<yfs_client::dirent>::iterator it){
+  entries.erase(it);
+}
+
+
+void  yfs_client::Directory::lookup(std::string name, list<yfs_client::dirent>::iterator& it){
+  for (it = entries.begin(); it != entries.end() && it->name != name; it++){;}
 }
 
   //returns iterator to internal list

@@ -28,7 +28,7 @@ class yfs_client {
 
   typedef unsigned long long inum;
 
-  enum xxstatus { OK, RPCERR, NOENT, IOERR, EXIST };
+  enum xxstatus { OK, RPCERR, NOENT, IOERR, EXIST, OFFERR };
 
   typedef int status;
 
@@ -87,11 +87,15 @@ class yfs_client {
     //inserts node into directory
     void insert_entry(dirent&  entry);
 
+    void lookup(std::string name, std::list<dirent>::iterator& it);
+
   //begin of list iterator
     std::list<dirent>::iterator begin();
 
   //end of list iterator
     std::list<dirent>::iterator end();
+
+    void remove_entry(list<dirent>::iterator it);
   
   };
 
@@ -119,11 +123,13 @@ class yfs_client {
   int mkfile(std::string name, inum parent, inum& ret);
 
   //  generates new directory inum, addes entry in parent.
-  //TODO add inum ret.
-  int mkdir(std::string name, inum parent);
+  int mkdir(std::string name, inum parent, inum& ret);
+
+  // deletes a file/directory.
+  int unlink(inum parent, std::string name);
 
   //reads file contents
-  int  readfile(inum finum, unsigned int size, unsigned int off, std::string& ret);
+  int readfile(inum finum, unsigned int size, unsigned int off, std::string& ret);
 
   int writefile(inum finum, std::string contents, unsigned int off);
 
@@ -136,6 +142,7 @@ class yfs_client {
 
   //takes a dir, marshalls it and writes it to extent
   int writedir();
+
 
 };
 

@@ -164,6 +164,7 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name,
       struct stat st;
       assert(getattr(n, st) == yfs_client::OK);
       e -> ino  = (fuse_ino_t) n;
+      //does it work if you call getattr with e->attr
       e -> attr =  st;
       return yfs_client::OK;
   }   else {
@@ -322,11 +323,14 @@ fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
   e.generation = 0;
 
   // You fill this in for Lab 3
-#if 0
+  std::string newdirname(name);
+  yfs_client::inum newinum;
+  VERIFY(yfs->mkdir(newdirname, parent, newinum) == yfs_client::OK);
+  e.ino = newinum;
+  VERIFY(getattr(e.ino, e.attr)  == yfs_client::OK);
   fuse_reply_entry(req, &e);
-#else
-  fuse_reply_err(req, ENOSYS);
-#endif
+
+  //  fuse_reply_err(req, ENOSYS);
 }
 
 void
@@ -334,9 +338,19 @@ fuseserver_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
 
   // You fill this in for Lab 3
-  // Success:	fuse_reply_err(req, 0);
-  // Not found:	fuse_reply_err(req, ENOENT);
-  fuse_reply_err(req, ENOSYS);
+  int ret;
+  std::string victim(name);
+
+  ret = yfs->unlink(parent, victim);
+  
+  if (ret == yfs_client::OK){
+    fuse_reply_err(req, 0);
+  } else if (ret == yfs_client::NOENT){
+    fuse_reply_err(req, ENOENT);
+  } else {
+    fuse_reply_err(req, ENOSYS);
+  }
+
 }
 
 void
@@ -362,26 +376,6 @@ main(int argc, char *argv[])
   char *mountpoint = 0;
   int err = -1;
   int fd;
-  // /*----------------*/
-
-  // std::string in = "0008file.txt000000020008filo.txt100000050002to0000FFFF";
-  // yfs_client::Directory dir(in);
-  
-  // std::string ser = dir.serialize();
-
-  // std::list<yfs_client::dirent>::iterator mit = dir.begin();
-
-  // while (mit != dir.end()){
-  //   fprintf(stderr, "entry: name %s, inum %llx\n",mit->name.c_str(), mit->inum);
-  //   mit++;
-  // }
-
-
-  // fprintf(stderr, "in: %s, out %s\n", in.c_str(), ser.c_str());
-  // fprintf(stderr, "hello1\n");
-
-  // /*-----------------*/
-
 
   setvbuf(stdout, NULL, _IONBF, 0);
 
@@ -396,41 +390,6 @@ main(int argc, char *argv[])
   myid = random();
 
   yfs = new yfs_client(argv[2], argv[3]);
-
-  // /*--------------------------*/
-  // fprintf(stderr, "hallo\n");
-
-  // std::string name("file1.exe");
-  
-  // std::list<yfs_client::dirent> mydir;
-  // int ok = yfs->readdir(0x1, mydir);
-
-  // fprintf(stderr, "call ok?: %d\n", ok == yfs_client::OK);
-
-  // std::list<yfs_client::dirent>::iterator it = mydir.begin();
-  // for (; it != mydir.end(); it++){
-  //   fprintf(stderr, "dir entry: %s, %llu\n", it->name.c_str(), it->inum);
-  // }
-
-  // yfs_client::inum inu;
-  // fprintf(stderr, "hello soon to enter mkfile call\n");
-  // std::string file("hello");
-
-  // yfs->mkfile(file, 0x1, inu);
-  // fprintf(stderr, "hello back from mkfile call\n");
-  // fprintf(stderr, "call ok?: %d\n", ok == yfs_client::OK);
-
-  // ok = yfs->readdir(0x1, mydir);
-
-  // fprintf(stderr, "call ok?: %d\n", ok == yfs_client::OK);
-
-  // it = mydir.begin();
-  // for (; it != mydir.end(); it++){
-  //   fprintf(stderr, "dir entry: %s, %llu\n", it->name.c_str(), it->inum);
-  // }
-
-  
-  // /*-----------------------*/
 
   fuseserver_oper.getattr    = fuseserver_getattr;
   fuseserver_oper.statfs     = fuseserver_statfs;
