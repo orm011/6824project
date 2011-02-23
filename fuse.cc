@@ -133,9 +133,17 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
 
   int bytes_written;
   std::string contents(buf, size);
-
-  //  fprintf(stderr, "at fuse write: %s\n", contents.c_str());
   
+  fprintf(stderr, "at fuse write, size: %d. inum: %016llx. contents:", size, (long long unsigned int) ino);
+  unsigned int i;
+  for (i = 0; i < size; i++){
+    if (buf[i] != '\0')
+      fprintf(stderr, "%c", buf[i]);
+    else
+      fprintf(stderr, "\\0");
+  }
+  fprintf(stderr, "\n");
+
   //TODO: error handling here?
   bytes_written = yfs->writefile(ino, contents, off);
   

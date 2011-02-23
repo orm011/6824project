@@ -15,6 +15,8 @@
 #include "lang/verify.h"
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
+#include <unistd.h>
+
 
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
 {
@@ -23,8 +25,13 @@ yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
   //add root to extent server
   ec->put(ROOTINUM, std::string());
   
+  //bind 
+  lc = new lock_client(lock_dst);
+
   //create generator
-  gen = new generator();
+  gen = new generator(getpid());
+
+  
 }
 
 yfs_client::inum
@@ -266,9 +273,7 @@ yfs_client::unlink(inum parentnum, std::string name){
 
       return yfs_client::OK;
     }
-
 }
-
 
 /* ----------Directory data structure methods ---------------------------*/
 
@@ -353,8 +358,8 @@ list<yfs_client::dirent>::iterator yfs_client::Directory::end(){
 /*--------- inum generator methods ------------------*/
 
 
-yfs_client::generator::generator(){
-  srand(0);
+yfs_client::generator::generator(int seed){
+  srand(seed);
 }
 
 yfs_client::inum yfs_client::generator::fileinum(){

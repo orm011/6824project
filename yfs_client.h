@@ -23,6 +23,7 @@ using namespace std;
 class yfs_client {
 
   extent_client *ec;
+  lock_client *lc;
 
  public:
 
@@ -34,7 +35,7 @@ class yfs_client {
 
   class generator {
   public:
-    generator();
+    generator(int seed);
     yfs_client::inum fileinum();
     yfs_client::inum dirinum();
 
