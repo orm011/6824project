@@ -37,9 +37,12 @@ lock_server::acquire(int clt, lock_protocol::lockid_t lid, int &r)
   ScopedLock sl(&table_mutex); 
   table_entry_t& lock = lock_table[lid];
 
+
   while(lock.locked){
     pthread_cond_wait(&lock.cond_var, &table_mutex);
   }
+
+  fprintf(stderr, "clt num %llx acquiring lock %016llx, aka lock %llu\n", (long long int)clt, lid, lid);
 
     lock.nacquire++;
     lock.locked = true;
@@ -52,10 +55,12 @@ lock_protocol::status
 lock_server::release(int clt, lock_protocol::lockid_t lid, int &r)
 {
   ScopedLock sl(&table_mutex);
+
   table_entry_t& lock = lock_table[lid];
 
-  assert(lock.locked && lock.clientid == clt);
+  fprintf(stderr, "clt num %llx releasing lock %016llx, aka lock %llu\n", (long long int)clt, lid, lid);
 
+  assert(lock.locked && lock.clientid == clt);
   lock.locked = false;
   pthread_cond_signal(&lock.cond_var);
   

@@ -148,6 +148,7 @@ yfs_client::mkfile(std::string name, inum parent, inum& ret){
 
   Directory parentDir(buf);
   inum inu = gen->fileinum();
+  fprintf(stderr, "yfs process %u generated inum %016llx aka %llu\n", getpid(), inu, inu);
   dirent newfile; 
   newfile.name = name;
   newfile.inum = inu;
@@ -242,6 +243,8 @@ yfs_client::mkdir(std::string name, inum parent, inum& ret){
 
   Directory parentDir(buf);
   ret = gen->dirinum();
+  fprintf(stderr, "yfs process %u generated inum %016llx aka %llu\n", getpid(), ret, ret);
+
   dirent newdir(name, ret);
 
   parentDir.insert_entry(newdir);

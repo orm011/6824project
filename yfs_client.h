@@ -23,9 +23,10 @@ using namespace std;
 class yfs_client {
 
   extent_client *ec;
-  lock_client *lc;
+
 
  public:
+  lock_client *lc;
 
   typedef unsigned long long inum;
 
@@ -65,11 +66,22 @@ class yfs_client {
     dirent(){;};
   };
 
-  struct dirent2 {
-    std::string name;
-    yfs_client::inum inum;
 
+  class ScopedRemoteLock {
+  private:
+    lock_protocol::lockid_t locknum;
+    lock_client* lc;
+
+  public:
+  ScopedRemoteLock(inum num, lock_client* client): locknum((lock_protocol::lockid_t) num), lc(client) {
+      VERIFY(lc->acquire(locknum) == lock_protocol::OK);
+    }
+
+    ~ScopedRemoteLock(){
+      VERIFY(lc->release(locknum) == lock_protocol::OK);
+    }
   };
+
 
 
   class Directory {
@@ -146,5 +158,9 @@ class yfs_client {
 
 
 };
+
+
+
+
 
 #endif 

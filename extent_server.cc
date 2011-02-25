@@ -9,13 +9,16 @@
 #include <fcntl.h>
 
 #include <ctime>
+#include <rpc/slock.h>
 
 extent_server::extent_server(): extentmap()
 {
+  pthread_mutex_init(&maplatch, NULL);
 }
 
 int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
 {
+  ScopedLock sl(&maplatch);
   bool newid = (extentmap.find(id) == extentmap.end());
   extent_protocol::attr& attributes =  extentmap[id].attr;
   
@@ -32,6 +35,7 @@ int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
 
 int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 {
+  ScopedLock sl(&maplatch);
   if (extentmap.find(id) != extentmap.end()){
     buf = extentmap[id].str;
     extentmap[id].attr.atime = time(NULL);
@@ -43,6 +47,7 @@ int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
 
 int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr &a)
 {
+  ScopedLock sl(&maplatch);
   // You replace this with a real implementation. We send a phony response
   // for now because it's difficult to get FUSE to do anything (including
   // unmount) if getattr fails.
@@ -65,6 +70,7 @@ int extent_server::getattr(extent_protocol::extentid_t id, extent_protocol::attr
 
 int extent_server::remove(extent_protocol::extentid_t id, int &)
 {
+  ScopedLock sl(&maplatch);
   map<extent_protocol::extentid_t, datapiece>::iterator it = extentmap.find(id);
 
   if (it != extentmap.end()){

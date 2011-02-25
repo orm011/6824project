@@ -25,6 +25,7 @@ int id() {
   return myid;
 }
 
+
 yfs_client::status
 getattr(yfs_client::inum inum, struct stat &st)
 {
@@ -66,7 +67,9 @@ void
 fuseserver_getattr(fuse_req_t req, fuse_ino_t ino,
           struct fuse_file_info *fi)
 {
-    struct stat st;
+  
+  yfs_client::ScopedRemoteLock rl(ino, yfs->lc);
+  struct stat st;
     yfs_client::inum inum = ino; // req->in.h.nodeid;
     yfs_client::status ret;
 
@@ -81,6 +84,8 @@ fuseserver_getattr(fuse_req_t req, fuse_ino_t ino,
 void
 fuseserver_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set, struct fuse_file_info *fi)
 {
+
+  yfs_client::ScopedRemoteLock rl(ino, yfs->lc);
   printf("fuseserver_setattr 0x%x\n", to_set);
   if (FUSE_SET_ATTR_SIZE & to_set) {
     printf("   fuseserver_setattr set size to %zu\n", attr->st_size);
@@ -105,6 +110,7 @@ fuseserver_read(fuse_req_t req, fuse_ino_t ino, size_t size,
 {
   // You fill this in for Lab 2
 
+  yfs_client::ScopedRemoteLock rl(ino, yfs->lc);
   assert(yfs->isfile(ino));
   std::string str;
   int ret = yfs->readfile(ino, size, off, str);
@@ -128,6 +134,8 @@ fuseserver_write(fuse_req_t req, fuse_ino_t ino,
   const char *buf, size_t size, off_t off,
   struct fuse_file_info *fi)
 {
+  yfs_client::ScopedRemoteLock rl(ino, yfs->lc);
+
   assert(yfs->isfile(ino));
   
 
@@ -158,6 +166,8 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name,
      mode_t mode, struct fuse_entry_param *e)
 {
 
+  yfs_client::ScopedRemoteLock rl(parent, yfs->lc);
+
   fprintf(stderr, "got to createhelper: parent inum  %ux name: %s\n", (unsigned int)parent, name);
   // In yfs, timeouts are always set to 0.0, and generations are always set to 0
   e->attr_timeout = 0.0;
@@ -185,6 +195,8 @@ void
 fuseserver_create(fuse_req_t req, fuse_ino_t parent, const char *name,
    mode_t mode, struct fuse_file_info *fi)
 {
+
+
   struct fuse_entry_param e;
   yfs_client::status ret;
   if( (ret = fuseserver_createhelper( parent, name, mode, &e )) == yfs_client::OK ) {
@@ -216,8 +228,10 @@ void fuseserver_mknod( fuse_req_t req, fuse_ino_t parent,
 void
 fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
+
+  yfs_client::ScopedRemoteLock rl(parent, yfs->lc);
   struct fuse_entry_param e;
-  // fprintf(stderr, "in lookup\n");
+
   // In yfs, timeouts are always set to 0.0, and generations are always set to 0
   e.attr_timeout = 0.0;
   e.entry_timeout = 0.0;
@@ -280,6 +294,8 @@ void
 fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
           off_t off, struct fuse_file_info *fi)
 {
+  yfs_client::ScopedRemoteLock rl(ino, yfs->lc);
+
   yfs_client::inum inum = ino; // req->in.h.nodeid;
   struct dirbuf b;
 
@@ -324,6 +340,8 @@ void
 fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
      mode_t mode)
 {
+
+  yfs_client::ScopedRemoteLock rl(parent, yfs->lc);
   struct fuse_entry_param e;
   // In yfs, timeouts are always set to 0.0, and generations are always set to 0
   e.attr_timeout = 0.0;
@@ -344,7 +362,7 @@ fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
 void
 fuseserver_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
-
+  yfs_client::ScopedRemoteLock rl(parent, yfs->lc);
   // You fill this in for Lab 3
   int ret;
   std::string victim(name);

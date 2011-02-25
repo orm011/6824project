@@ -6,6 +6,7 @@
 #include <string>
 #include <map>
 #include "extent_protocol.h"
+#include <pthread.h>
 
 using namespace std;
 
@@ -17,6 +18,7 @@ class extent_server {
   };
 
   map<extent_protocol::extentid_t, datapiece> extentmap;
+  pthread_mutex_t maplatch;
   
 
  public:
