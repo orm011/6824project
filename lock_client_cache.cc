@@ -39,10 +39,11 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
   pthread_mutex_unlock(&local_table_mutex);
 
   pthread_mutex_lock(&lock_delegate.protecting_mutex);
-  tprintf("(client %llu) about to handle acquire, state: %d\n", pthread_self(), lock_delegate.state);
+  tprintf("(client %s %llu) about to handle acquire, state: %d\n", id.c_str(), pthread_self(), lock_delegate.state);
   switch(lock_delegate.state){
   case NONE:
-    assert(lock_delegate.waiting == 0 && lock_delegate.retry_call_received == false);
+    assert(lock_delegate.waiting == 0);
+    assert(lock_delegate.retry_call_received == false);
 
     lock_delegate.state = ACQUIRING;
     pthread_mutex_unlock(&lock_delegate.protecting_mutex);
@@ -53,7 +54,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
     //NOTE: same code as in release() case RELEASING, with waiting threads.    
     if (answer == lock_protocol::RETRY){
       while (!lock_delegate.retry_call_received){
-	printf("(client %llu) waiting at acquire() case NONE\n",pthread_self());
+	printf("(client %s %llu) about to wait at acquire() case NONE\n", id.c_str(), pthread_self());
 	pthread_mutex_lock(&lock_delegate.protecting_mutex);
 	pthread_cond_wait(&lock_delegate.cond, &lock_delegate.protecting_mutex);
 	pthread_mutex_unlock(&lock_delegate.protecting_mutex);
@@ -81,12 +82,13 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
     assert(lock_delegate.retry_call_received == 0);
     //then go on to also execute the case aquiring.
   case ACQUIRING:
+    {
     lock_delegate.waiting++;
-
+    st coming_from_state = lock_delegate.state;
     while (lock_delegate.state != FREE){
-      printf("(client %llu) just woken at acquiring() case ACQUIRING\n",pthread_self());
+      printf("(client  %llu) about to wait at acquiring() case %d\n", pthread_self(), coming_from_state);
       pthread_cond_wait(&lock_delegate.cond, &lock_delegate.protecting_mutex);
-      printf("(client %llu) just woken at acquiring() case ACQUIRING\n",pthread_self());
+      printf("(client %llu) just woken at acquiring() case %d\n",pthread_self(), coming_from_state);
 
     }
     
@@ -95,6 +97,7 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
     pthread_mutex_unlock(&lock_delegate.protecting_mutex);
     printf("(client %llu)  about to return from acquire() case ACQUIRING for lid %llu\n", pthread_self(), lid);
     return lock_protocol::OK;
+    }
 
   case FREE:
     //actually: someone could have been waiting, and youre just not that somebody and want the lock now that
@@ -121,6 +124,8 @@ lock_client_cache::release(lock_protocol::lockid_t lid)
   pthread_mutex_lock(&lock_delegate.protecting_mutex);
 
   tprintf("(client %llu) about to handle release() for lid %llu, state: %d\n", pthread_self(), lid, lock_delegate.state);
+  tprintf("state LOCKED == state? %d\n", lock_delegate.state == LOCKED);
+  tprintf("state RELEASING == state? %d\n", lock_delegate.state == RELEASING);
   switch (lock_delegate.state) {
   case NONE:
     assert(lock_delegate.waiting == 0 && lock_delegate.retry_call_received == false);
@@ -129,11 +134,12 @@ lock_client_cache::release(lock_protocol::lockid_t lid)
     VERIFY(0);
   case LOCKED:
     lock_delegate.state = FREE;
-    pthread_cond_signal(&lock_delegate.cond);
+    pthread_cond_broadcast(&lock_delegate.cond);
+    printf("(client %llu)release case LOCKED. done with releasing\n",  pthread_self());
     pthread_mutex_unlock(&lock_delegate.protecting_mutex);
+    printf("mutex released\n");
     return lock_protocol::OK;
   case FREE:
-    assert(lock_delegate.waiting == 0);
     VERIFY(0);
   case RELEASING:
     if (lock_delegate.waiting == 0)
@@ -172,11 +178,11 @@ lock_client_cache::release(lock_protocol::lockid_t lid)
 
 	VERIFY(ans == lock_protocol::OK);    
       
-	//NOTE: same code as in acquire() case NONE.
+	//NOTE: same code as in acquire() case NONE and release() with pending
 	pthread_mutex_lock(&lock_delegate.protecting_mutex);
 	lock_delegate.retry_call_received = false;
 	lock_delegate.state = FREE;
-	pthread_cond_signal(&lock_delegate.cond);
+	pthread_cond_broadcast(&lock_delegate.cond);
 	pthread_mutex_unlock(&lock_delegate.protecting_mutex);
 
 	return lock_protocol::OK;
@@ -205,15 +211,51 @@ lock_client_cache::revoke_handler(lock_protocol::lockid_t lid,
   tprintf("(client %llu) about to handle revoke, lid: %llu state: %d \n", pthread_self(),lid, lock_delegate.state);
   switch(lock_delegate.state){
   case NONE:
+    assert(lock_delegate.waiting == 0);
     VERIFY(0);
   case FREE:
-    lock_delegate.state = NONE; // means the server may get an 'acquire()' before it gets the previous release
-    pthread_mutex_unlock(&lock_delegate.protecting_mutex);
+    if (lock_delegate.waiting == 0)
+      {
+	lock_delegate.state = NONE; 
+	pthread_mutex_unlock(&lock_delegate.protecting_mutex);
+
+	int r, answer;
+	answer = cl->call(lock_protocol::release, lid, id, r);
+	VERIFY(answer == lock_protocol::OK);
+	return lock_protocol::OK;
+
+      }
+    if (lock_delegate.waiting > 0)
+      {
+	lock_delegate.state = ACQUIRING;
+	pthread_mutex_unlock(&lock_delegate.protecting_mutex);
     
-    int r, answer;
-    answer = cl->call(lock_protocol::release, lid, id, r);
-    VERIFY(answer == lock_protocol::OK);
-    return lock_protocol::OK;
+	int r, ans;
+
+	ans = cl->call(lock_protocol::release, lid, id, r);
+	VERIFY(ans == lock_protocol::OK);
+     
+	ans = cl->call(lock_protocol::acquire, lid, id, r);
+	if (ans == lock_protocol::RETRY){
+	  while (!lock_delegate.retry_call_received){
+	    printf("(client %llu) waiting at release() case RELEASING with pending acquires()\n",pthread_self());
+	    pthread_mutex_lock(&lock_delegate.protecting_mutex);
+	    pthread_cond_wait(&lock_delegate.cond, &lock_delegate.protecting_mutex);
+	    pthread_mutex_unlock(&lock_delegate.protecting_mutex);
+	  }
+	  ans = cl->call(lock_protocol::acquire, lid, id, r);
+	}
+
+	VERIFY(ans == lock_protocol::OK);    
+      
+	//NOTE: same code as in acquire() case NONE.
+	pthread_mutex_lock(&lock_delegate.protecting_mutex);
+	lock_delegate.retry_call_received = false;
+	lock_delegate.state = FREE;
+	pthread_cond_broadcast(&lock_delegate.cond);
+	pthread_mutex_unlock(&lock_delegate.protecting_mutex);
+	return lock_protocol::OK;
+      }
     
   case ACQUIRING:
   case LOCKED:

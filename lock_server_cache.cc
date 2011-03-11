@@ -33,7 +33,6 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
    pthread_mutex_unlock(&mylock.mutex);
    return lock_protocol::OK;
  case LOCKED:
-
    {
    assert(mylock.owner != "" && mylock.waiting_clients.empty());
    mylock.waiting_clients.push_back(id);
@@ -47,7 +46,7 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
     
      if (cl){
        int r, ret;
-       printf("(server) calling revoke on client %s, lock %llu",current_owner.c_str(), lid);
+       tprintf("(server) calling revoke on client %s, lock %llu",current_owner.c_str(), lid);
        ret = cl->call(rlock_protocol::revoke, lid, r);
        VERIFY(ret == rlock_protocol::OK);
      } else {
@@ -55,7 +54,6 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
      }
 
    }
-
    return lock_protocol::RETRY;
 
 
@@ -90,7 +88,7 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
 	 rpcc *cl = h.safebind();
 	 if (cl){
 	   int r, ret;
-	   printf("(server) calling revoke on client %s, lock %llu",owner.c_str(), lid);
+	   tprintf("(server) calling revoke on client %s, lock %llu",owner.c_str(), lid);
 	   ret = cl->call(rlock_protocol::revoke, lid, r);
 	   VERIFY(ret == rlock_protocol::OK);
 	 } else {
@@ -167,9 +165,9 @@ lock_server_cache::release(lock_protocol::lockid_t lid, std::string id,
       //TODO: WARNING. too tired when i wrote this
       if (cl){
 	int r, ret;
-	printf("about to call...\n");
+	tprintf("(server) about to call retry\n");
 	ret = cl->call(rlock_protocol::retry, lid, r);
-	printf("retry called\n");
+	tprintf("retry called\n");
 	VERIFY(ret == rlock_protocol::OK);
       } else {
 	VERIFY(0);
