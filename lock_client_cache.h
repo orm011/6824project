@@ -33,11 +33,11 @@ class lock_client_cache : public lock_client {
   typedef struct local_lock {
     st state;
     bool retry_call_received;
+    unsigned int waiting;
     pthread_mutex_t protecting_mutex;
     pthread_cond_t cond;
-    unsigned int waiting;
-    
-  local_lock(): state(NONE), retry_call_received(0), waiting(0){
+
+  local_lock(): state(NONE), retry_call_received(false), waiting(0){
       pthread_mutex_init(&protecting_mutex,NULL);
       pthread_cond_init(&cond,NULL);
     }
