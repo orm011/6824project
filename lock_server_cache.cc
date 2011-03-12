@@ -17,7 +17,7 @@ lock_server_cache::lock_server_cache(): lock_table()
 int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id, 
                                int &)
 {
-  tprintf("(server) %s wishes to acquire lock %llx\n", id.c_str(), lid);
+  //  tprintf("(server) %s wishes to acquire lock %llx\n", id.c_str(), lid);
   
   pthread_mutex_lock(&lock_table_mutex);
   lock_t &mylock = lock_table[lid];
@@ -46,10 +46,9 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
      rpcc *cl = h.safebind();
     
      if (cl){
-       int r, ret;
+       int r;
        //tprintf("(server) at acquire(), calling revoke on client %s, lock %llu\n", current_owner.c_str(), lid);
-       ret = cl->call(rlock_protocol::revoke, lid, r);
-       VERIFY(ret == rlock_protocol::OK);
+       VERIFY(cl->call(rlock_protocol::revoke, lid, r) == rlock_protocol::OK);
      } else {
        VERIFY(0);
      }
@@ -85,15 +84,14 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
 	 //must send revoke to calling client (same who is to be granted the lock)
 	 handle::handle h(id);
      
-	 string owner = id;
+	 //string owner = id;
 	 pthread_mutex_unlock(&mylock.mutex);
 
 	 rpcc *cl = h.safebind();
 	 if (cl){
-	   int r, ret;
+	   int r;
 	   //tprintf("(server) calling revoke on  client %s, lock %llu right at its own  acquire()\n", owner.c_str(), lid);
-	   ret = cl->call(rlock_protocol::revoke, lid, r);
-	   VERIFY(ret == rlock_protocol::OK);
+	   VERIFY(cl->call(rlock_protocol::revoke, lid, r) == rlock_protocol::OK);
 	 } else {
 	   VERIFY(0);
 	 }
@@ -147,13 +145,12 @@ lock_server_cache::release(lock_protocol::lockid_t lid, std::string id,
     {
       assert(!mylock.waiting_clients.empty());
       
-      tprintf("queue size: %u, state:\n", mylock.waiting_clients.size());
-      deque<string>::iterator it;
-      for (it = mylock.waiting_clients.begin(); it != mylock.waiting_clients.end(); it++){
-	printf("%s --- ", it->c_str());
-      }
-
-      printf("\n");
+      //tprintf("queue size: %u, state:\n", mylock.waiting_clients.size());
+      // deque<string>::iterator it;
+      // for (it = mylock.waiting_clients.begin(); it != mylock.waiting_clients.end(); it++){
+      // 	printf("%s --- ", it->c_str());
+      // }
+      // printf("\n");
 
       VERIFY(id == mylock.owner);
       mylock.state = WAITING;
@@ -166,10 +163,9 @@ lock_server_cache::release(lock_protocol::lockid_t lid, std::string id,
 
       rpcc *cl = h.safebind();
 
-      //TODO: WARNING. too tired when i wrote this
       if (cl){
-	int r, ret;
-	tprintf("(server) release() at case REVOKING to call retry() on client %s for lid: %llu\n", tocall.c_str(), lid);
+	int r;
+	//tprintf("(server) release() at case REVOKING to call retry() on client %s for lid: %llu\n", tocall.c_str(), lid);
 	VERIFY(cl->call(rlock_protocol::retry, lid, r) == rlock_protocol::OK);
       } else {
 	VERIFY(0);
