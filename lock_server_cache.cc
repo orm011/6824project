@@ -18,7 +18,6 @@ int lock_server_cache::acquire(lock_protocol::lockid_t lid, std::string id,
                                int &)
 {
   //  tprintf("(server) %s wishes to acquire lock %llx\n", id.c_str(), lid);
-  
   pthread_mutex_lock(&lock_table_mutex);
   lock_t &mylock = lock_table[lid];
   pthread_mutex_unlock(&lock_table_mutex);
