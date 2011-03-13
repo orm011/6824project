@@ -88,13 +88,9 @@ lock_client_cache::acquire(lock_protocol::lockid_t lid)
     case ACQUIRING:
       {
 	//tprintf("(client %llu) case LOCKED/RELEASE/ACQUIRING  %llu\n", pthread_self(), lid);
-	lock_delegate.waiting++;
-
 	while (lock_delegate.state != FREE && lock_delegate.state != NONE){
 	  pthread_cond_wait(&lock_delegate.cond, &lock_delegate.protecting_mutex);
 	}
-
-	lock_delegate.waiting--;    
 	//printf("about to break");
 	break;
 	//mutex released in the next loop by appropriate case FREE or NONE.
