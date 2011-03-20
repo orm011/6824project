@@ -26,12 +26,14 @@ extent_client::get(extent_protocol::extentid_t eid, std::string &buf)
 
   extent_protocol::status ret = extent_protocol::OK;
   
-  ScopedLock sl(&cache_table_mutex);  
+  pthread_mutex_lock(&cache_table_mutex);  
   cache_row_t & row = cache_table[eid];
+  pthread_mutex_unlock(&cache_table_mutex);
 
   if (row.current){
     buf = row.buf;
   } else {
+
     ret = cl->call(extent_protocol::get, eid, buf);
     row.current = true;
     row.buf = buf;
@@ -53,7 +55,10 @@ extent_client::put(extent_protocol::extentid_t eid, std::string buf)
 {
   extent_protocol::status ret = extent_protocol::OK;
   //  int r;
+  pthread_mutex_lock(&cache_table_mutex);
   cache_row_t & row = cache_table[eid];
+  pthread_mutex_unlock(&cache_table_mutex);
+
   assert(row.current);
   assert(buf != row.buf);
   row.buf = buf;
@@ -69,8 +74,9 @@ extent_client::remove(extent_protocol::extentid_t eid)
 {
   extent_protocol::status ret = extent_protocol::OK;
   //  int r;
-  
+  pthread_mutex_lock(&cache_table_mutex);  
   cache_table.erase(eid);
+  pthread_mutex_unlock(&cache_table_mutex);
   //  ret = cl->call(extent_protocol::remove, eid, r);
   return ret;
 }
