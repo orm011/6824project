@@ -15,7 +15,6 @@ lock_client_cache::lock_client_cache(std::string xdst,
 				     class lock_release_user *_lu)
   : lock_client(xdst), lu(_lu)
 {
-  //tprintf("states: NONE: %d, ACQUIRING %d, LOCKED: %d, FREE %d, RELEASING: %d\n", NONE, ACQUIRING, LOCKED, FREE, RELEASING);
   srand(time(NULL)^last_port);
   rlock_port = ((rand()%32000) | (0x1 << 10));
   const char *hname;
@@ -27,7 +26,8 @@ lock_client_cache::lock_client_cache(std::string xdst,
   last_port = rlock_port;
   
   pthread_mutex_init(&local_table_mutex, NULL);
-
+  
+  lu = _lu;
   rpcs *rlsrpc = new rpcs(rlock_port);
   rlsrpc->reg(rlock_protocol::revoke, this, &lock_client_cache::revoke_handler);
   rlsrpc->reg(rlock_protocol::retry, this, &lock_client_cache::retry_handler);
@@ -141,6 +141,9 @@ lock_client_cache::release(lock_protocol::lockid_t lid)
     {
       pthread_mutex_unlock(&lock_delegate.protecting_mutex);
 
+      //recall dorelease() implies RPCs
+      fprintf(stderr,"about to call dorelease()");
+      lu->dorelease(lid);
       int r;
       VERIFY(cl->call(lock_protocol::release, lid, id, r) == lock_protocol::OK);
 
@@ -176,6 +179,8 @@ lock_client_cache::revoke_handler(lock_protocol::lockid_t lid,
       pthread_cond_signal(&lock_delegate.cond);
       pthread_mutex_unlock(&lock_delegate.protecting_mutex);
 
+      fprintf(stderr,"about to call dorelease()");
+      lu->dorelease(lid);
       int r;
       VERIFY(cl->call(lock_protocol::release, lid, id, r) == lock_protocol::OK);
 

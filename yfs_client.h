@@ -139,7 +139,7 @@ class yfs_client {
   int mkdir(std::string name, inum parent, inum& ret);
 
   // deletes a file/directory.
-  int unlink(inum parent, std::string name);
+  int unlink(inum parent, std::string name, inum & victim_num);
 
   //reads file contents
   int readfile(inum finum, unsigned int size, unsigned int off, std::string& ret);

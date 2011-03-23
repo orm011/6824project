@@ -88,7 +88,7 @@ fuseserver_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr, int to_set
   yfs_client::ScopedRemoteLock rl(ino, yfs->lc);
   printf("fuseserver_setattr 0x%x\n", to_set);
   if (FUSE_SET_ATTR_SIZE & to_set) {
-    printf("   fuseserver_setattr set size to %zu\n", attr->st_size);
+    printf("fuseserver_setattr set size to %zu\n", (size_t)attr->st_size);
 
     // filled in for lab 2.
    
@@ -179,12 +179,14 @@ fuseserver_createhelper(fuse_ino_t parent, const char *name,
   int reply; 
   
   if ((reply = (yfs -> mkfile(name, parent, n))) == yfs_client::OK){
-      struct stat st;
-      assert(getattr(n, st) == yfs_client::OK);
-      e -> ino  = (fuse_ino_t) n;
-      //does it work if you call getattr with e->attr
-      e -> attr =  st;
-      return yfs_client::OK;
+    yfs_client::ScopedRemoteLock sl(n, yfs->lc);
+    struct stat st;
+    assert(getattr(n, st) == yfs_client::OK);
+    e -> ino  = (fuse_ino_t) n;
+
+    //does it work if you call getattr with e->attr
+    e -> attr =  st;
+    return yfs_client::OK;
   }   else {
     return reply;
   }
@@ -195,11 +197,9 @@ void
 fuseserver_create(fuse_req_t req, fuse_ino_t parent, const char *name,
    mode_t mode, struct fuse_file_info *fi)
 {
-
-
   struct fuse_entry_param e;
   yfs_client::status ret;
-  if( (ret = fuseserver_createhelper( parent, name, mode, &e )) == yfs_client::OK ) {
+  if( (ret = fuseserver_createhelper( parent, name, mode, &e)) == yfs_client::OK ) {
     fuse_reply_create(req, &e, fi);
   } else {
 		if (ret == yfs_client::EXIST) {
@@ -246,7 +246,14 @@ fuseserver_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
     assert(ent.name.compare(name) == 0);
 
     e.ino = (fuse_ino_t) ent.inum;
-    assert(getattr(ent.inum, e.attr) == yfs_client::OK);
+
+    //need to lock to drive the cache
+    {    
+      yfs_client::ScopedRemoteLock sl(ent.inum, yfs->lc);
+      yfs_client::status rest = getattr(ent.inum, e.attr);
+      assert(rest == yfs_client::OK);
+    }
+
   }
 
   // You fill this in for Lab 2
@@ -351,9 +358,16 @@ fuseserver_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
   // You fill this in for Lab 3
   std::string newdirname(name);
   yfs_client::inum newinum;
+
   VERIFY(yfs->mkdir(newdirname, parent, newinum) == yfs_client::OK);
   e.ino = newinum;
-  VERIFY(getattr(e.ino, e.attr)  == yfs_client::OK);
+  
+  //need to lock and release so that the next client also gets the new dir
+  {
+    yfs_client::ScopedRemoteLock sl(newinum, yfs->lc);
+    VERIFY(getattr(newinum, e.attr)  == yfs_client::OK);
+  }
+
   fuse_reply_entry(req, &e);
 
   //  fuse_reply_err(req, ENOSYS);
@@ -365,9 +379,14 @@ fuseserver_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
   yfs_client::ScopedRemoteLock rl(parent, yfs->lc);
   // You fill this in for Lab 3
   int ret;
-  std::string victim(name);
 
-  ret = yfs->unlink(parent, victim);
+  std::string victim(name);
+  yfs_client::inum victim_inum = 0;
+
+  ret = yfs->unlink(parent, victim, victim_inum);
+  assert(victim_inum != 0);
+
+  yfs_client::ScopedRemoteLock vl(victim_inum, yfs->lc);
   
   if (ret == yfs_client::OK){
     fuse_reply_err(req, 0);

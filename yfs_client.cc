@@ -22,17 +22,26 @@
 
 yfs_client::yfs_client(std::string extent_dst, std::string lock_dst)
 {
+  //lock and extent clients
   ec = new extent_client(extent_dst);
-  //add root to extent server
-  ec->put(ROOTINUM, std::string());
-  
-  //bind 
-  lc = new lock_client_cache(lock_dst, NULL);//for cached version.
+  lock_release_user *_lu = new extent_flusher(ec);
+  lc = new lock_client_cache(lock_dst, _lu);//for cached version.
 
-  //create generator
+  //root folder
+  lc->acquire(ROOTINUM);
+  fprintf(stderr, "acquired root lock\n");
+  std::string buf;
+
+  if (ec->get(ROOTINUM, buf) == extent_protocol::NOENT){
+    fprintf(stderr, "root not found\n");
+    ec->put(ROOTINUM, std::string());
+  }
+
+  fprintf(stderr, "about to release root lock\n");
+  lc->release(ROOTINUM);
+
+  //inum generator
   gen = new generator(getpid());
-
-  
 }
 
 yfs_client::inum
@@ -101,7 +110,7 @@ yfs_client::getdir(inum inum, dirinfo &din)
   printf("getdir %016llx\n", inum);
   extent_protocol::attr a;
   if (ec->getattr(inum, a) != extent_protocol::OK) {
-    fprintf(stderr, "within getdir error");
+    fprintf(stderr, "within getdir error\n");
     r = IOERR;
     goto release;
   }
@@ -257,18 +266,20 @@ yfs_client::mkdir(std::string name, inum parent, inum& ret){
 }
 
 int
-yfs_client::unlink(inum parentnum, std::string name){
+yfs_client::unlink(inum parentnum, std::string name, inum & victim_num){
   assert(isdir(parentnum));
   std::string dirstring;
     VERIFY(ec->get(parentnum, dirstring) == extent_protocol::OK);
     Directory dir(dirstring);
     std::list<dirent>::iterator it;
-
+    
     dir.lookup(name, it);
     if (it == dir.end()){
       return yfs_client::NOENT;
     } else {
       //remove extent from extent server
+      victim_num = it->inum;
+      VERIFY(!isdir(victim_num));
       VERIFY(ec->remove(it->inum) == extent_protocol::OK);
       
       //update parent directory

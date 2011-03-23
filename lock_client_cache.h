@@ -1,7 +1,4 @@
-// lock client interface.
-
 #ifndef lock_client_cache_h
-
 #define lock_client_cache_h
 
 #include <string>
@@ -11,15 +8,28 @@
 #include "lang/verify.h"
 #include <pthread.h>
 #include <map>
+#include "extent_client.h"
 
 using namespace std;
-// Classes that inherit lock_release_user can override dorelease so that 
+// Classes that inherit lock_release_user can override doreelase so that 
 // that they will be called when lock_client releases a lock.
 // You will not need to do anything with this class until Lab 5.
 class lock_release_user {
  public:
   virtual void dorelease(lock_protocol::lockid_t) = 0;
   virtual ~lock_release_user() {};
+};
+
+class extent_flusher : public lock_release_user {
+ private:
+  extent_client::extent_client *ec;
+
+ public:
+  extent_flusher(extent_client::extent_client * ex){ ec = ex;}
+  void dorelease(lock_protocol::lockid_t eid){ 
+    fprintf(stderr,"dorelease: about to flush\n");
+    ec->flush(eid);
+  }
 };
 
 class lock_client_cache : public lock_client {
@@ -37,10 +47,9 @@ class lock_client_cache : public lock_client {
     pthread_cond_t cond;
 
   local_lock(): state(NONE), retry_call_received(false){
-      pthread_mutex_init(&protecting_mutex,NULL);
-      pthread_cond_init(&cond,NULL);
+      pthread_mutex_init(&protecting_mutex, NULL);
+      pthread_cond_init(&cond, NULL);
     }
-
   } local_lock_t;
   
   map<lock_protocol::lockid_t, local_lock> local_lock_table; 
@@ -50,6 +59,7 @@ class lock_client_cache : public lock_client {
   int rlock_port;
   std::string hostname;
   std::string id;
+
  public:
   static int last_port;
   lock_client_cache(std::string xdst, class lock_release_user *l = 0);
@@ -61,6 +71,5 @@ class lock_client_cache : public lock_client {
   rlock_protocol::status retry_handler(lock_protocol::lockid_t, 
                                        int &);
 };
-
 
 #endif
