@@ -137,6 +137,5 @@ extent_client::flush(extent_protocol::extentid_t eid)
     VERIFY((ret = cl->call(extent_protocol::put, eid, row.buf, r)) == extent_protocol::OK);
   }
 
-  fprintf(stderr,"calls done\n");
   return ret;
 }
