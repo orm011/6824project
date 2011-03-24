@@ -8,7 +8,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include <ctime>
+
+
 #include <rpc/slock.h>
 
 extent_server::extent_server(): extentmap()
@@ -22,13 +23,11 @@ int extent_server::put(extent_protocol::extentid_t id, std::string buf, int &)
   bool newid = (extentmap.find(id) == extentmap.end());
   extent_protocol::attr& attributes =  extentmap[id].attr;
   
-  attributes.size = buf.size();
-  attributes.ctime = attributes.mtime = time(NULL);
+  if (newid)
+    attributes.init(buf);
+  else
+    attributes.put(buf);
 
-  //atime gets set in put() only at creation time.
-  if (newid) attributes.atime = attributes.mtime;
-
-  //check this piece of code: it might not be storing anything after function returns.
   extentmap[id].str = buf;
   return extent_protocol::OK;
 }
@@ -38,7 +37,7 @@ int extent_server::get(extent_protocol::extentid_t id, std::string &buf)
   ScopedLock sl(&maplatch);
   if (extentmap.find(id) != extentmap.end()){
     buf = extentmap[id].str;
-    extentmap[id].attr.atime = time(NULL);
+    extentmap[id].attr.get();
     return extent_protocol::OK;
   } else {
     return extent_protocol::NOENT;

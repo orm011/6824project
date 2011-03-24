@@ -4,6 +4,9 @@
 #define extent_protocol_h
 
 #include "rpc.h"
+#include <ctime>
+
+using namespace std;
 
 class extent_protocol {
  public:
@@ -22,6 +25,20 @@ class extent_protocol {
     unsigned int mtime;
     unsigned int ctime;
     unsigned int size;
+
+    void init(string buf){
+      size = buf.size();
+      atime =  mtime = ctime = time(NULL);
+    }
+
+    void put(string buf){
+      size = buf.size(); 
+      ctime = mtime = time(NULL);
+    }
+
+    void get(){
+      atime = time(NULL);
+    }
   };
 };
 

@@ -36,13 +36,14 @@ extent_client::get(extent_protocol::extentid_t eid, std::string &buf)
 
   if (row_present){
     buf = row.buf;
+    row.attr.get();
     goto ret;
   } 
 
   ret = cl->call(extent_protocol::get, eid, buf); 
 
   if (ret == extent_protocol::OK){
-    VERIFY((ret = cl->call(extent_protocol::getattr, eid, row.attr)) == extent_protocol::OK);
+    row.attr.init(buf);
     row.buf = buf;
   } else{
     VERIFY(ret == extent_protocol::NOENT);
@@ -95,10 +96,8 @@ extent_client::put(extent_protocol::extentid_t eid, std::string buf)
   cache_row_t & row = cache_table[eid];
   pthread_mutex_unlock(&cache_table_mutex);
 
-  extent_protocol::attr & attri = row.attr;
   row.dirty = (buf != row.buf);
-  attri.size = buf.size();
-  attri.ctime = attri.mtime = time(NULL);
+  row.attr.put(buf);
   row.buf = buf;
 
   fprintf(stderr, "leaving put...\n");
